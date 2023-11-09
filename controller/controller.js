@@ -99,23 +99,23 @@ module.exports = {
             pool.execute(
                 "INSERT INTO teacher (name, email, phoneNo, password, role, image, isEmailVeryfied, isPhoneVeryfied, accountStatus, deviceType, deviceToken, otp, authToken) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 dbData,
-                async (err, result) => {
-                    if (err) {
-                        console.error(err);
-                        return res
-                            .status(500)
-                            .send("Error in inserting data into the database");
+                // async (err, result) => {
+                // if (err) {
+                //     console.error(err);
+                //     return res
+                //         .status(500)
+                //         .send("Error in inserting data into the database");
+                // }
+                // console.log("Data successfully inserted into the database.");
+                res.json({
+                    message: "Success",
+                    status: 200,
+                    body: {
+                        name: req.body.name,
+                        token: authToken,
                     }
-                    console.log("Data successfully inserted into the database.");
-                    res.json({
-                        message: "Success",
-                        status: 200,
-                        body: {
-                            name: req.body.name,
-                            token: authToken,
-                        }
-                    });
-                }
+                })
+                // }
             );
         } catch (error) {
             console.error(error);
@@ -309,5 +309,224 @@ module.exports = {
             res.status(500).json({ error: "Internal server error" });
         }
     },
+
+    // -----------------------------------------------Insert Subject------------------------------------------------------
+
+    insertSubject: async (req, res) => {
+        try {
+            const {
+                sbujectName,
+            } = req.body;
+            if (
+                !sbujectName
+            ) {
+                return res
+                    .status(400)
+                    .json({ message: "Please fill subject fields" });
+            }
+            const dbData = [
+                sbujectName
+            ];
+            pool.execute(
+                "INSERT INTO subject (sbujectName) VALUES (?)",
+                dbData,
+                res.json({
+                    message: "Success",
+                    status: 200,
+                    body: {
+                        name: req.body
+                    }
+                })
+            );
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send("Internal Server Error");
+        }
+    },
+
+    // -----------------------------------------------Insert Categories------------------------------------------------------
+
+    insertCategories: async (req, res) => {
+        try {
+            const {
+                categoryName,
+            } = req.body;
+            if (
+                !categoryName
+            ) {
+                return res
+                    .status(400)
+                    .json({ message: "Please fill category fields" });
+            }
+            const dbData = [
+                categoryName
+            ];
+            pool.execute(
+                "INSERT INTO categories (categoryName) VALUES (?)",
+                dbData,
+                res.json({
+                    message: "Success",
+                    status: 200,
+                    body: {
+                        name: req.body
+                    }
+                })
+            );
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send("Internal Server Error");
+        }
+    },
+
+    // -----------------------------------------------Insert Sub Categories------------------------------------------------------
+
+    insertSubCategories: async (req, res) => {
+        try {
+            const {
+                categoryId,
+                subCategoryName,
+            } = req.body;
+            console.log(req.body, "cnadbcheqbchqbc")
+            if (
+                !categoryId,
+                !subCategoryName
+            ) {
+                return res
+                    .status(400)
+                    .json({ message: "Please fill sub category fields" });
+            }
+            const dbData = [
+                categoryId,
+                subCategoryName,
+            ];
+            pool.execute(
+                "INSERT INTO subCategories (categoryId, subCategoryName) VALUES (?, ?)",
+                dbData,
+                res.json({
+                    message: "Success",
+                    status: 200,
+                    body: {
+                        name: req.body
+                    }
+                })
+            );
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send("Internal Server Error");
+        }
+    },
+
+    // -----------------------------------------------Insert Sub Categories------------------------------------------------------
+
+    addContent: async (req, res) => {
+        try {
+            const {
+                contentType,
+                subjectId,
+                categoryId,
+                subCategoryId,
+                title,
+                description,
+            } = req.body;
+    
+            if (
+                !contentType ||
+                !subjectId ||
+                !categoryId ||
+                !subCategoryId ||
+                !title ||
+                !description
+            ) {
+                return res
+                    .status(400)
+                    .json({ message: "Please fill all required fields" });
+            }
+    
+            let contentFile = "";
+
+            const audioFile = req.files.file;
+            const mime = audioFile.mimetype.split("/")[0]
+            
+            if (contentType === "audio" && mime=="audio") {
+                const audioFile = req.files.file;
+                contentFile = audioFile.name;
+                const uploadDir = path.join(
+                    __dirname,
+                    "../public/content/audio",
+                    contentFile
+                );
+                audioFile.mv(uploadDir, (err) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).send("Error in uploading audio file");
+                    }
+                });
+            } else if (contentType === "video" && mime=="video") {
+                const videoFile = req.files.file;
+                contentFile = videoFile.name;
+                const uploadDir = path.join(
+                    __dirname,
+                    "../public/content/video",
+                    contentFile
+                );
+                videoFile.mv(uploadDir, (err) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).send("Error in uploading video file");
+                    }
+                });
+            } else if (contentType === "document" && mime=="application") {
+                const documentFile = req.files.file;
+                contentFile = documentFile.name;
+                const uploadDir = path.join(
+                    __dirname,
+                    "../public/content/documents",
+                    contentFile
+                );
+                documentFile.mv(uploadDir, (err) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).send("Error in uploading document file");
+                    }
+                });
+            } else {
+                return res.status(400).json({ message: "Invalid content type or missing file." });
+            }
+    
+            const dbData = [
+                contentType,
+                subjectId,
+                categoryId,
+                subCategoryId,
+                title,
+                description,
+                contentFile,
+            ];
+    
+            pool.execute(
+                "INSERT INTO content (contentType, subjectId, categoryId, subCategoryId, title, description, contentFile) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                dbData,
+                // (err, result) => {
+                //     if (err) {
+                //         console.error(err);
+                //         return res.status(500).send("Error in inserting data into the database");
+                //     }
+                //     console.log("Data successfully inserted into the database.");
+                    res.json({
+                        message: "Success",
+                        status: 200,
+                        body: {
+                            Data: req.body,
+                            file: contentFile,
+                        },
+                    })
+                // }
+            );
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send("Internal Server Error");
+        }
+    }
+    
 
 }
