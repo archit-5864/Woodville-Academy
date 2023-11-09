@@ -7,5 +7,6 @@ router.put("/updateTeacherBasicDetails/:id", teacherController.updateTeacherBasi
 router.put("/updateTeacherEducationDetails/:id", teacherController.updateTeacherEducationDetails)
 router.put("/updateTeacherExperienceDetails/:id", teacherController.updateTeacherExperienceDetails)
 router.put("/updateTeacherIdProofDetails/:id", teacherController.updateTeacherIdProofDetails)
+router.post("/loginTeacher", teacherController.loginTeacher)
 
 module.exports = router;

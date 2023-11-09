@@ -1,4 +1,4 @@
-let conn = require("../db/conn")
+let pool = require("../db/conn")
 const path = require("path")
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -10,7 +10,7 @@ const SECRET = process.env.SECRET;
 
 module.exports = {
 
-    // -----------------------------------------------Create Teacher Section Start---------------------------------------
+    // -----------------------------------------------Create Teacher Section---------------------------------------
 
     createTeacher: async (req, res) => {
         try {
@@ -53,12 +53,7 @@ module.exports = {
                 return res.status(400).json({ message: "Invalid phone number format" });
             }
 
-            const hashedPassword = await bcrypt
-                .hash(password, 10)
-                .then(hash => {
-                    return hash
-                })
-                .catch(err => console.error(err.message))
+            const hashedPassword = await bcrypt.hash(password, 10);
 
             let imageName = "";
             if (req.files && req.files.image) {
@@ -72,10 +67,20 @@ module.exports = {
                 imageFile.mv(uploadDir, (err) => {
                     if (err) {
                         console.error(err);
-                        // return res.status(500).send("Error in uploading image");
+                        return res.status(500).send("Error in uploading image");
                     }
                 });
             }
+
+            const authToken = jwt.sign({ email }, SECRET, {
+                expiresIn: "1h",
+            });
+
+            const otpValue = await emailMamanger.sendOTP(
+                email,
+                "Account verify OTP"
+            );
+
             const dbData = [
                 name,
                 email,
@@ -87,26 +92,21 @@ module.exports = {
                 isPhoneVeryfied,
                 accountStatus,
                 deviceType,
-                deviceToken,
-                otp,
+                deviceToken || null,
+                otpValue,
+                authToken || null,
             ];
-            conn.query(
-                "INSERT INTO teacher (name, email, phoneNo, password, role, image, isEmailVeryfied, isPhoneVeryfied, accountStatus, deviceType, deviceToken, otp) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            pool.execute(
+                "INSERT INTO teacher (name, email, phoneNo, password, role, image, isEmailVeryfied, isPhoneVeryfied, accountStatus, deviceType, deviceToken, otp, authToken) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 dbData,
                 async (err, result) => {
                     if (err) {
                         console.error(err);
                         return res
                             .status(500)
-                            .send("Error in inserting data into database");
+                            .send("Error in inserting data into the database");
                     }
-                    const authToken = jwt.sign({ email }, SECRET, {
-                        expiresIn: "1h",
-                    });
-                    conn.query(
-                        `Update teacher set authToken = '${authToken}' where email = '${email}'`,
-                        [authToken]
-                    );
+                    console.log("Data successfully inserted into the database.");
                     res.json({
                         message: "Success",
                         status: 200,
@@ -114,15 +114,7 @@ module.exports = {
                             name: req.body.name,
                             token: authToken,
                         }
-                    })
-
-                    const otp = await emailMamanger.sendOTP(
-                        email,
-                        "Account verify OTP"
-                    );
-                    conn.query(
-                        `update teacher set otp = '${otp}'  where email = '${email}' `
-                    );
+                    });
                 }
             );
         } catch (error) {
@@ -131,7 +123,37 @@ module.exports = {
         }
     },
 
-    // -----------------------------------------------Update Teacher Basic Details Start-----------------------------------
+    // -----------------------------------------------Teacher Login Section----------------------------------------
+
+    loginTeacher: async (req, res) => {
+        try {
+            const { email, password } = req.body
+            const [rows] = await pool.execute('SELECT * FROM teacher WHERE email = ?', [email]);
+            if (rows.length === 0) {
+                return res.status(401).json({ message: 'User not found' });
+            }
+            const user = rows[0];
+
+            const match = await bcrypt.compare(password, user.password);
+            if (match) {
+                const authToken = jwt.sign({ email }, SECRET, {
+                    expiresIn: '1h',
+                });
+                await pool.execute('UPDATE teacher SET authToken = ? WHERE email = ?', [authToken, email]);
+                res.json({
+                    message: 'Login successful',
+                    token: authToken,
+                });
+            } else {
+                res.status(401).json({ message: 'Invalid password' });
+            }
+        } catch (error) {
+            console.error(error);
+            return res.status(500).send('Internal Server Error');
+        }
+    },
+
+    // -----------------------------------------------Update Teacher Basic Details---------------------------------
 
     updateTeacherBasicDetails: async (req, res) => {
         try {
@@ -141,7 +163,7 @@ module.exports = {
                 about
             } = req.body;
             const teacherId = req.params.id;
-            conn.query(
+            pool.execute(
                 `UPDATE teacher SET gender = ?, dateOfBirth = ?, about = ? WHERE id = ?`,
                 [
                     gender,
@@ -163,7 +185,7 @@ module.exports = {
         }
     },
 
-    // -----------------------------------------------Update Teacher Education Details Start--------------------------------
+    // -----------------------------------------------Update Teacher Education Details--------------------------------
 
     updateTeacherEducationDetails: async (req, res) => {
         try {
@@ -190,7 +212,7 @@ module.exports = {
                 });
             }
             const teacherId = req.params.id;
-            conn.query(
+            pool.execute(
                 `UPDATE teacher SET educaton = ?, stream = ?, workType = ?, documentImage = ? WHERE id = ?`,
                 [
                     educaton,
@@ -204,7 +226,7 @@ module.exports = {
                 message: "Success",
                 status: 200,
                 body: {
-                     ...req.body,
+                    ...req.body,
                     Image: documentImage,
                 }
             })
@@ -214,7 +236,7 @@ module.exports = {
         }
     },
 
-    // -----------------------------------------------Update Teacher Experience Details Start-------------------------------
+    // -----------------------------------------------Update Teacher Experience Details-------------------------------
 
     updateTeacherExperienceDetails: async (req, res) => {
         try {
@@ -224,7 +246,7 @@ module.exports = {
                 skills
             } = req.body;
             const teacherId = req.params.id;
-            conn.query(
+            pool.execute(
                 `UPDATE teacher SET experience = ?, description = ?, skills = ? WHERE id = ?`,
                 [
                     experience,
@@ -246,7 +268,7 @@ module.exports = {
         }
     },
 
-    // -----------------------------------------------Update Teacher ID Proof Details Start----------------------------------
+    // -----------------------------------------------Update Teacher ID Proof Details----------------------------------
 
     updateTeacherIdProofDetails: async (req, res) => {
         try {
@@ -254,7 +276,6 @@ module.exports = {
             const teacherId = req.params.id;
 
             let idProofDocument = "";
-console.log(req.files)
             if (req.files && req.files.document) {
                 const documentFile = req.files.document;
                 idProofDocument = documentFile.name;
@@ -272,7 +293,7 @@ console.log(req.files)
                     }
                 });
             }
-            conn.query(
+            pool.execute(
                 `UPDATE teacher SET address = ?, idProof = ?, idProofDocument = ? WHERE id = ?`,
                 [address, idProof, idProofDocument, teacherId]
             );
